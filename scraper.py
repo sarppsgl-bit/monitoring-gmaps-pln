@@ -1,8 +1,8 @@
-import sys
 import re
-import urllib.parse
 import json
+import urllib.parse
 import string
+import requests
 
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwG0n7k4j9LkdumyKuyCi3s4rxd_XK9Oi_11s8fKp7WOa5L6dDJjWtFWGdPTMdxipmn/exec"
 
@@ -19,102 +19,67 @@ HEADERS = {
     "Cookie": "SOCS=CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzEaAmVuIAEaBgiAo_CmBg"
 }
 
-# Gunakan string.digits agar bebas dari kesalahan formatting regex
-d_str = string.digits
-pat_rating = f"([{d_str}]+(?:[.,][{d_str}]+)?)"
-pat_reviews = f"([{d_str}.]+)"
+DIGITS = string.digits
 
-def extract_data(html_text):
-    rating = 0.0
-    reviews = 0
+def extract_rating(html):
+    pattern = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
+    matches = re.findall(pattern + r'\s*(?:★|bintang|stars|dari)', html, re.IGNORECASE)
+    matches += re.findall(r'Rating:\s*' + pattern, html, re.IGNORECASE)
+    matches += re.findall(r'aria-label="' + pattern, html, re.IGNORECASE)
+    for val_str in matches:
+        try:
+            val = float(val_str.replace(',', '.'))
+            if 1.0 &lt;= val &lt;= 5.0:
+                return val
+        except Exception:
+            pass
+    return 0.0
 
-    m1 = re.search(pat_rating + r'\s*(?:★|bintang|stars|dari|out of)', html_text, re.IGNORECASE)
-    m2 = re.search(r'Rating:\s*' + pat_rating, html_text, re.IGNORECASE)
-    m3 = re.search(r'aria-label="' + pat_rating, html_text, re.IGNORECASE)
+def extract_reviews(html):
+    pattern = f"([{DIGITS}.]+)"
+    matches = re.findall(pattern + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
+    for val_str in matches:
+        try:
+            rev_clean = val_str.replace('.', '')
+            if rev_clean.isdigit():
+                return int(rev_clean)
+        except Exception:
+            pass
+    return 0
 
-    for m in [m1, m2, m3]:
-        if m:
-            try:
-                v = float(m.group(1).replace(',', '.'))
-                if 1.0 &lt;= v &lt;= 5.0:
-                    rating = v
-                    break
-            except Exception:
-                pass
-
-    r1 = re.search(pat_reviews + r'\s*(?:ulasan|reviews|penilaian)', html_text, re.IGNORECASE)
-    r2 = re.search(r'\\(' + pat_reviews + r'\\)', html_text, re.IGNORECASE)
-
-    for r in [r1, r2]:
-        if r:
-            try:
-                rev_s = r.group(1).replace('.', '')
-                if rev_s.isdigit():
-                    reviews = int(rev_s)
-                    break
-            except Exception:
-                pass
-
-    return rating, reviews
-
-def run():
-    print("=== STARTING GMAPS RATING SCRAPER ===")
-    
+def fetch_unit(unit):
+    name = unit["namaUnit"]
+    url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + "&amp;hl=id&amp;gl=id"
+    rating, reviews = 0.0, 0
     try:
-        import requests
+        res = requests.get(url, headers=HEADERS, timeout=12)
+        if res.status_code == 200:
+            rating = extract_rating(res.text)
+            reviews = extract_reviews(res.text)
     except Exception as e:
-        print("Error importing requests:", e)
-        sys.exit(0)
+        print(f"Error fetching {name}: {e}")
+    print(f"RESULT -&gt; {name}: Rating={rating}, Reviews={reviews}")
+    return {
+        "idUnit": unit["idUnit"],
+        "namaUnit": name,
+        "rating": rating,
+        "reviews": reviews
+    }
 
-    results = []
-
-    for u in UNITS:
-        u_id = u["idUnit"]
-        u_name = u["namaUnit"]
-        q = "PLN " + u_name
-        encoded_q = urllib.parse.quote(q)
-        target_url = f"https://www.google.com/search?q={encoded_q}&amp;hl=id&amp;gl=id"
-
-        rating = 0.0
-        reviews = 0
-
-        print(f"Fetching data for {u_name}...")
-
+def main():
+    print("=== STARTING GMAPS RATING SCRAPER ===")
+    results = [fetch_unit(u) for u in UNITS]
+    valid_data = [r for r in results if r["rating"] &gt; 0]
+    
+    if valid_data:
+        print(f"Sending {len(valid_data)} records to Sheets...")
         try:
-            resp = requests.get(target_url, headers=HEADERS, timeout=12)
-            print(f"HTTP Status {u_name}: {resp.status_code}")
-            if resp.status_code == 200:
-                rating, reviews = extract_data(resp.text)
-        except Exception as err:
-            print(f"Fetch error for {u_name}: {err}")
-
-        print(f"RESULT -&gt; {u_name}: Rating = {rating}, Reviews = {reviews}")
-        results.append({
-            "idUnit": u_id,
-            "namaUnit": u_name,
-            "rating": rating,
-            "reviews": reviews
-        })
-
-    print("SCRAPE SUMMARY:", results)
-
-    valid_results = [r for r in results if r["rating"] &gt; 0]
-
-    if valid_results:
-        print(f"Sending {len(valid_results)} valid records to Google Sheets...")
-        try:
-            post_resp = requests.post(WEB_APP_URL, json=valid_results, headers={"Content-Type": "application/json"}, timeout=12)
-            print("Google Sheets Response:", post_resp.text)
-        except Exception as post_err:
-            print("Error sending to Google Sheets:", post_err)
+            res = requests.post(WEB_APP_URL, json=valid_data, headers={"Content-Type": "application/json"}, timeout=12)
+            print("Sheets Response:", res.text)
+        except Exception as e:
+            print("Error posting to Sheets:", e)
     else:
         print("WARNING: No valid ratings (&gt; 0) found. Post skipped.")
 
 if __name__ == "__main__":
-    try:
-        run()
-    except Exception as main_err:
-        print("Main execution error:", main_err)
-    finally:
-        print("Script execution completed successfully.")
-        sys.exit(0)
+    main()
