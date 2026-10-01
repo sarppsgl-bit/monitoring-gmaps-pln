@@ -17,17 +17,16 @@ HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
-DIGITS = "0123456789"
-NUM_PAT = r'([' + DIGITS + r']+[\.,]?' + r'[' + DIGITS + r']*)'
-REV_PAT = r'([' + DIGITS + r'\.]+)'
-
 def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
     
-    r1 = re.search(NUM_PAT + r'\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
-    r2 = re.search(r'Rating:\s*' + NUM_PAT, html, re.IGNORECASE)
-    r3 = re.search(r'aria-label="' + NUM_PAT, html, re.IGNORECASE)
+    # Pola tangkapan angka rating (misal: 4.4 atau 4,4)
+    pattern_rating = r'([0-9]+(?:[\.,][0-9]+)?)'
+    
+    r1 = re.search(pattern_rating + r'\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
+    r2 = re.search(r'Rating:\s*' + pattern_rating, html, re.IGNORECASE)
+    r3 = re.search(r'aria-label="' + pattern_rating, html, re.IGNORECASE)
     
     for r_mat in [r1, r2, r3]:
         if r_mat:
@@ -39,8 +38,10 @@ def extract_rating_and_reviews(html):
             except Exception:
                 pass
                 
-    rev1 = re.search(REV_PAT + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
-    rev2 = re.search(r'\\(' + REV_PAT + r'\\)\s*(?:ulasan|reviews)?', html, re.IGNORECASE)
+    # Pola tangkapan jumlah ulasan
+    pattern_reviews = r'([0-9]+(?:\.[0-9]+)?)'
+    rev1 = re.search(pattern_reviews + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
+    rev2 = re.search(r'\\(' + pattern_reviews + r'\\)\s*(?:ulasan|reviews)?', html, re.IGNORECASE)
     
     for rev_mat in [rev1, rev2]:
         if rev_mat:
@@ -58,6 +59,7 @@ def scrape():
     results = []
     print("Memulai penarikan data Rating GMaps 4 Unit PLN Sigli...")
     
+    # METODE 1: Fast HTTP Requests
     for u in UNITS:
         query = f"PLN {u['namaUnit']}"
         encoded_query = urllib.parse.quote(query)
@@ -82,6 +84,7 @@ def scrape():
             "reviews": reviews
         })
 
+    # METODE 2: Playwright Fallback (Jika ada rating yang masih 0)
     needs_playwright = any(item["rating"] == 0 for item in results)
     
     if needs_playwright:
@@ -120,6 +123,7 @@ def scrape():
 
     print("HASIL AKHIR:", results)
 
+    # Kirim hanya jika ada data valid (&gt; 0)
     valid_results = [item for item in results if item["rating"] &gt; 0]
     
     if valid_results:
@@ -132,4 +136,7 @@ def scrape():
         print("PERINGATAN: Semua rating 0. Pengiriman ditunda demi keamanan sheet.")
 
 if __name__ == "__main__":
-    scrape()
+    try:
+        scrape()
+    except Exception as main_err:
+        print(f"FATAL ERROR DETECTED: {main_err}")
