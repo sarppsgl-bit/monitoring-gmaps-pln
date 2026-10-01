@@ -1,3 +1,5 @@
+```
+```python
 import json
 import re
 import requests
@@ -36,7 +38,7 @@ def scrape():
                     page.goto(url, timeout=30000, wait_until="domcontentloaded")
                     content = page.content()
 
-                    # Extract Rating (Presisi Digit + Koma)
+                    # Extract Rating (Presisi Digit + Koma/Titik)
                     r_match = re.search(r'([0-9]+[\.,][0-9]+)\s*(?:★|bintang|stars|dari)', content, re.IGNORECASE) or \
                               re.search(r'Rating:\s*([0-9]+[\.,][0-9]+)', content, re.IGNORECASE) or \
                               re.search(r'aria-label="([0-9]+[\.,][0-9]+)', content, re.IGNORECASE)
@@ -78,3 +80,5 @@ def scrape():
 
 if __name__ == "__main__":
     scrape()
+
+```
