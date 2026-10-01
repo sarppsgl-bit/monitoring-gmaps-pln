@@ -62,7 +62,7 @@ def run_scraper():
     # Metode 1: HTTP Requests
     for u in UNITS:
         query_str = urllib.parse.quote("PLN " + u["namaUnit"])
-        target_url = f"https://www.google.com/search?q={query_str}&amp;hl=id"
+        target_url = f"https://www.google.com/search?q={query_str}&amp;hl=id&amp;gl=id"
         rating, reviews = 0.0, 0
 
         try:
@@ -102,7 +102,7 @@ def run_scraper():
                 for item in results:
                     if item["rating"] == 0:
                         q_str = urllib.parse.quote("PLN " + item["namaUnit"])
-                        t_url = f"https://www.google.com/search?q={q_str}&amp;hl=id"
+                        t_url = f"https://www.google.com/search?q={q_str}&amp;hl=id&amp;gl=id"
                         try:
                             page.goto(t_url, timeout=15000, wait_until="domcontentloaded")
                             page.wait_for_timeout(2000)
@@ -135,42 +135,3 @@ if __name__ == "__main__":
         run_scraper()
     except Exception as top_err:
         print(f"Eksekusi selesai dengan catatan: {top_err}")
-
-```
-
-*(Klik* **Commit changes...** *)*
-
----
-
-#### **2\. Perbarui File** **.github/workflows/daily.yml**
-
-Buka file **.github/workflows/daily.yml** ➔ Klik Edit (Ikon Pensil) ➔ Ganti seluruh isinya dengan struktur ini:
-
-```
-name: Daily GMaps Rating Scraper
-
-on:
-  schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
-
-jobs:
-  scrape-job:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests playwright
-          playwright install chromium
-
-      - name: Run Scraper Script
-        run: python scraper.py
