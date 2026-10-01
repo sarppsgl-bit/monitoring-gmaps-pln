@@ -15,7 +15,7 @@ UNITS = [
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cookie": "SOCS=CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzEaAmVuIAEaBgiAo_CmBg"
 }
@@ -26,53 +26,43 @@ def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
 
-    # 1. TANGKAP DARI JSON-LD SCHEMA GOOGLE
-    m_json_rat = re.search(r'"ratingValue"\s*:\s*"?([' + DIGITS + r'\.,]+)"?', html, re.IGNORECASE)
-    m_json_rev = re.search(r'"reviewCount"\s*:\s*"?([' + DIGITS + r'\.]+)"?', html, re.IGNORECASE)
+    # 1. CARI RATING DESIMAL (1.0 - 5.0)
+    pat_digit = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
+    
+    # Pola 1: Angka di dekat kata kunci bintang/rating/stars
+    candidates = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
+    candidates += re.findall(r'(?:rating|di-rating|rated)\s*:?\s*' + pat_digit, html, re.IGNORECASE)
+    candidates += re.findall(r'aria-label="[^"]*?' + pat_digit + r'\s*(?:bintang|stars|dari|out of)', html, re.IGNORECASE)
+    candidates += re.findall(r'aria-label="' + pat_digit, html, re.IGNORECASE)
+    candidates += re.findall(r'"ratingValue"\s*:\s*"?(' + pat_digit + r')"?', html, re.IGNORECASE)
 
-    if m_json_rat:
+    for c in candidates:
+        if isinstance(c, tuple):
+            c = c[0]
         try:
-            v = float(m_json_rat.group(1).replace(',', '.'))
+            v = float(str(c).replace(',', '.'))
             if str(int(v)) in "12345":
                 rating = v
+                break
         except Exception:
             pass
 
-    if m_json_rev:
+    # 2. CARI JUMLAH ULASAN
+    pat_rev = f"([{DIGITS}.]+)"
+    rev_candidates = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
+    rev_candidates += re.findall(r'\\(' + pat_rev + r'\\)', html, re.IGNORECASE)
+    rev_candidates += re.findall(r'"reviewCount"\s*:\s*"?(' + pat_rev + r')"?', html, re.IGNORECASE)
+
+    for r_str in rev_candidates:
+        if isinstance(r_str, tuple):
+            r_str = r_str[0]
         try:
-            r_str = m_json_rev.group(1).replace('.', '')
-            if r_str.isdigit():
-                reviews = int(r_str)
+            r_clean = str(r_str).replace('.', '')
+            if r_clean.isdigit():
+                reviews = int(r_clean)
+                break
         except Exception:
             pass
-
-    # 2. FALLBACK PATTERN VISUAL JIKA JSON TIDAK TERSEDIA
-    if rating == 0.0:
-        pat_num = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
-        matches = re.findall(pat_num + r'\s*(?:★|bintang|stars|dari)', html, re.IGNORECASE)
-        matches += re.findall(r'Rating:\s*' + pat_num, html, re.IGNORECASE)
-        matches += re.findall(r'aria-label="' + pat_num, html, re.IGNORECASE)
-        
-        for val_str in matches:
-            try:
-                v = float(val_str.replace(',', '.'))
-                if str(int(v)) in "12345":
-                    rating = v
-                    break
-            except Exception:
-                pass
-
-    if reviews == 0:
-        pat_rev = f"([{DIGITS}.]+)"
-        matches_rev = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
-        for r_str in matches_rev:
-            try:
-                r_clean = r_str.replace('.', '')
-                if r_clean.isdigit():
-                    reviews = int(r_clean)
-                    break
-            except Exception:
-                pass
 
     return rating, reviews
 
