@@ -34,19 +34,24 @@ def scrape():
                 
                 try:
                     page.goto(url, timeout=30000, wait_until="domcontentloaded")
+                    page.wait_for_timeout(3000)  # Nunggu 3 detik agar elemen rating muncul sempurna
                     content = page.content()
 
-                    # Extract Rating (Presisi Digit + Koma/Titik)
-                    r_match = re.search(r'([0-9]+[\.,][0-9]+)\s*(?:★|bintang|stars|dari)', content, re.IGNORECASE) or \
-                              re.search(r'Rating:\s*([0-9]+[\.,][0-9]+)', content, re.IGNORECASE) or \
-                              re.search(r'aria-label="([0-9]+[\.,][0-9]+)', content, re.IGNORECASE)
+                    # Extract Rating
+                    r1 = re.search(r'([0-9][\.,][0-9])\s*(?:★|bintang|stars|dari)', content, re.IGNORECASE)
+                    r2 = re.search(r'Rating:\s*([0-9][\.,][0-9])', content, re.IGNORECASE)
+                    r3 = re.search(r'aria-label="([0-9][\.,][0-9])', content, re.IGNORECASE)
+                    
+                    r_match = r1 or r2 or r3
                     
                     if r_match:
                         rating = float(r_match.group(1).replace(',', '.'))
 
                     # Extract Reviews
-                    rev_match = re.search(r'([0-9\.]+)\s*(?:ulasan|reviews|penilaian)', content, re.IGNORECASE) or \
-                                re.search(r'\\(([0-9\.]+)\\)\s*ulasan', content, re.IGNORECASE)
+                    rev1 = re.search(r'([0-9\.]+)\s*(?:ulasan|reviews|penilaian)', content, re.IGNORECASE)
+                    rev2 = re.search(r'\\(([0-9\.]+)\\)\s*ulasan', content, re.IGNORECASE)
+                    
+                    rev_match = rev1 or rev2
                     
                     if rev_match:
                         rev_str = rev_match.group(1).replace('.', '')
@@ -57,12 +62,13 @@ def scrape():
                 except Exception as e:
                     print(f"ERROR fetching {u['namaUnit']}: {e}")
 
-                results.append({
-                    "idUnit": u["idUnit"],
-                    "namaUnit": u["namaUnit"],
-                    "rating": rating,
-                    "reviews": reviews
-                })
+                if rating &gt; 0:
+                    results.append({
+                        "idUnit": u["idUnit"],
+                        "namaUnit": u["namaUnit"],
+                        "rating": rating,
+                        "reviews": reviews
+                    })
 
             browser.close()
     except Exception as e_playwright:
