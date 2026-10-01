@@ -14,7 +14,8 @@ UNITS = [
 ]
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7",
     "Cookie": "SOCS=CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzEaAmVuIAEaBgiAo_CmBg"
 }
@@ -26,40 +27,7 @@ def extract_rating(html):
     matches = re.findall(pattern + r'\s*(?:★|bintang|stars|dari)', html, re.IGNORECASE)
     matches += re.findall(r'Rating:\s*' + pattern, html, re.IGNORECASE)
     matches += re.findall(r'aria-label="' + pattern, html, re.IGNORECASE)
-    for val_str in matches:
-        try:
-            val = float(val_str.replace(',', '.'))
-            if str(int(val)) in "12345":
-                return val
-        except Exception:
-            pass
-    return 0.0
-
-def extract_reviews(html):
-    pattern = f"([{DIGITS}.]+)"
-    matches = re.findall(pattern + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
-    for val_str in matches:
-        try:
-            rev_clean = val_str.replace('.', '')
-            if rev_clean.isdigit():
-                return int(rev_clean)
-        except Exception:
-            pass
-    return 0
-
-def fetch_unit(unit):
-    name = unit["namaUnit"]
-    amp = chr(38)
-    url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + amp + "hl=id" + amp + "gl=id"
-    rating, reviews = 0.0, 0
-    try:
-        res = requests.get(url, headers=HEADERS, timeout=12)
-        if res.status_code == 200:
-            rating = extract_rating(res.text)
-            reviews = extract_reviews(res.text)
-    except Exception as e:
-        print(f"Error fetching {name}: {e}")
-    print(f"RESULT -&gt; {name}: Rating={rating}, Reviews={reviews}")
+    matches += re.findall(r'class="[^"]*"&gt;' + pattern + r' {name}: Rating={rating}, Reviews={reviews}")
     return {
         "idUnit": unit["idUnit"],
         "namaUnit": name,
@@ -71,7 +39,6 @@ def main():
     print("=== STARTING GMAPS RATING SCRAPER ===")
     results = [fetch_unit(u) for u in UNITS]
     
-    # Filter rating valid tanpa menggunakan simbol lebih besar dari
     valid_data = [r for r in results if r["rating"] != 0.0]
     
     if valid_data:
