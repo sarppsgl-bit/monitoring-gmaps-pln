@@ -21,10 +21,10 @@ def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
     
-    # Deteksi Rating (4.4 / 4,4) - Menggunakan [0-9] aman tanpa backslash
-    r1 = re.search(r'([0-9]+[\.,][0-9]+)\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
-    r2 = re.search(r'Rating:\s*([0-9]+[\.,][0-9]+)', html, re.IGNORECASE)
-    r3 = re.search(r'aria-label="([0-9]+[\.,][0-9]+)', html, re.IGNORECASE)
+    # Deteksi Rating (4.4 / 4,4) - Murni menggunakan [0-9] aman
+    r1 = re.search(r'([0-9]+[\.,]?[0-9]*)\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
+    r2 = re.search(r'Rating:\s*([0-9]+[\.,]?[0-9]*)', html, re.IGNORECASE)
+    r3 = re.search(r'aria-label="([0-9]+[\.,]?[0-9]*)', html, re.IGNORECASE)
     
     for r_mat in [r1, r2, r3]:
         if r_mat:
