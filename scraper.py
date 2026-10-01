@@ -19,18 +19,22 @@ HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
-DIGITS = string.digits
+VALID_PREFIXES = ("1.", "2.", "3.", "4.", "5.0")
+
+def is_valid_rating(val):
+    s_val = str(float(val))
+    return s_val.startswith(VALID_PREFIXES)
 
 def parse_html_for_rating(html):
     rating = 0.0
     reviews = 0
 
-    # 1. Menangkap angka desimal presisi Google + jumlah ulasan (e.g. 4.3999996, 76)
-    js_matches = re.findall(r'([1-5]\.[0-9]{1,15})\s*,\s*([1-9][0-9]{0,5})\b', html)
+    # 1. Menangkap angka desimal presisi Google + jumlah ulasan
+    js_matches = re.findall(r'([0-9]\.[0-9]{1,15})\s*,\s*([0-9]{1,5})\b', html)
     for r_str, rev_str in js_matches:
         try:
             val = float(r_str)
-            if int(val) in (1, 2, 3, 4, 5):
+            if is_valid_rating(val):
                 rev_num = int(rev_str)
                 if rev_num != 0:
                     rating = round(val, 1)
@@ -45,7 +49,7 @@ def parse_html_for_rating(html):
     if m_json_r:
         try:
             val = float(m_json_r.group(1).replace(',', '.'))
-            if int(val) in (1, 2, 3, 4, 5):
+            if is_valid_rating(val):
                 rating = round(val, 1)
         except Exception:
             pass
@@ -62,21 +66,21 @@ def parse_html_for_rating(html):
 
     # 3. Menangkap dari aria-label / teks visual
     if rating == 0.0:
-        candidates = re.findall(r'aria-label="[^"]*?\b([1-5][.,][0-9])\b', html, re.IGNORECASE)
-        candidates += re.findall(r'\b([1-5][.,][0-9])\b\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
-        candidates += re.findall(r'(?:Rating|Di-rating)\s*:?\s*\b([1-5][.,][0-9])\b', html, re.IGNORECASE)
+        candidates = re.findall(r'aria-label="[^"]*?\b([0-9][.,][0-9])\b', html, re.IGNORECASE)
+        candidates += re.findall(r'\b([0-9][.,][0-9])\b\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
+        candidates += re.findall(r'(?:Rating|Di-rating)\s*:?\s*\b([0-9][.,][0-9])\b', html, re.IGNORECASE)
         for c in candidates:
             try:
                 val = float(str(c).replace(',', '.'))
-                if int(val) in (1, 2, 3, 4, 5):
+                if is_valid_rating(val):
                     rating = round(val, 1)
                     break
             except Exception:
                 pass
 
     if reviews == 0:
-        rev_candidates = re.findall(r'\b([1-9][0-9]{0,5})\s*(?:ulasan|reviews|penilaian)\b', html, re.IGNORECASE)
-        rev_candidates += re.findall(r'\\(\s*([1-9][0-9]{0,5})\s*\\)', html)
+        rev_candidates = re.findall(r'\b([0-9]{1,5})\s*(?:ulasan|reviews|penilaian)\b', html, re.IGNORECASE)
+        rev_candidates += re.findall(r'\\(\s*([0-9]{1,5})\s*\\)', html)
         for rc in rev_candidates:
             try:
                 r_clean = str(rc).replace('.', '')
