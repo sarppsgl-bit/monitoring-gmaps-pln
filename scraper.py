@@ -17,14 +17,17 @@ HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
+DIGITS = "0123456789"
+NUM_PAT = r'([' + DIGITS + r']+[\.,]?' + r'[' + DIGITS + r']*)'
+REV_PAT = r'([' + DIGITS + r'\.]+)'
+
 def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
     
-    # Deteksi Rating (4.4 / 4,4) - Murni menggunakan [0-9] aman
-    r1 = re.search(r'([0-9]+[\.,]?[0-9]*)\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
-    r2 = re.search(r'Rating:\s*([0-9]+[\.,]?[0-9]*)', html, re.IGNORECASE)
-    r3 = re.search(r'aria-label="([0-9]+[\.,]?[0-9]*)', html, re.IGNORECASE)
+    r1 = re.search(NUM_PAT + r'\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
+    r2 = re.search(r'Rating:\s*' + NUM_PAT, html, re.IGNORECASE)
+    r3 = re.search(r'aria-label="' + NUM_PAT, html, re.IGNORECASE)
     
     for r_mat in [r1, r2, r3]:
         if r_mat:
@@ -36,9 +39,8 @@ def extract_rating_and_reviews(html):
             except Exception:
                 pass
                 
-    # Deteksi Jumlah Ulasan
-    rev1 = re.search(r'([0-9\.]+)\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
-    rev2 = re.search(r'\\(([0-9\.]+)\\)\s*(?:ulasan|reviews)?', html, re.IGNORECASE)
+    rev1 = re.search(REV_PAT + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
+    rev2 = re.search(r'\\(' + REV_PAT + r'\\)\s*(?:ulasan|reviews)?', html, re.IGNORECASE)
     
     for rev_mat in [rev1, rev2]:
         if rev_mat:
@@ -56,7 +58,6 @@ def scrape():
     results = []
     print("Memulai penarikan data Rating GMaps 4 Unit PLN Sigli...")
     
-    # METODE 1: Fast HTTP Requests
     for u in UNITS:
         query = f"PLN {u['namaUnit']}"
         encoded_query = urllib.parse.quote(query)
@@ -81,7 +82,6 @@ def scrape():
             "reviews": reviews
         })
 
-    # METODE 2: Playwright Fallback (Jika ada rating yang masih 0)
     needs_playwright = any(item["rating"] == 0 for item in results)
     
     if needs_playwright:
@@ -118,10 +118,8 @@ def scrape():
         except Exception as pw_init_err:
             print(f"Playwright fallback skipped: {pw_init_err}")
 
-    # Log Ringkasan Hasil
     print("HASIL AKHIR:", results)
 
-    # Kirim Hanya Data Valid (Rating &gt; 0) ke Google Sheets
     valid_results = [item for item in results if item["rating"] &gt; 0]
     
     if valid_results:
