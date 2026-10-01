@@ -67,15 +67,18 @@ def fetch_unit(unit):
     try:
         res = requests.get("https://www.google.com/search", params=params, headers=HEADERS, timeout=12)
         
-        # Tangkap judul halaman untuk log
-        title_m = re.search(r'title&gt;(.*?) Status: {res.status_code}, Title: '{p_title}'")
+        # Tangkap title tag menggunakan hex \x3c (&lt;) dan \x3e (&gt;)
+        title_pat = r'\x3ctitle\x3e(.*?)\x3c/title\x3e'
+        title_m = re.search(title_pat, res.text, re.IGNORECASE)
+        p_title = title_m.group(1) if title_m else "No Title"
+        print("Fetch " + name + " - Status: " + str(res.status_code) + " - Title: " + p_title)
         
         if res.status_code == 200:
             rating, reviews = extract_rating_and_reviews(res.text)
     except Exception as e:
-        print(f"Error fetching {name}: {e}")
+        print("Error fetching " + name + ": " + str(e))
         
-    print(f"RESULT : {name} Rating={rating}, Reviews={reviews}")
+    print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews))
     return {
         "idUnit": unit["idUnit"],
         "namaUnit": name,
@@ -90,12 +93,12 @@ def main():
     valid_data = [r for r in results if r["rating"] != 0.0]
     
     if valid_data:
-        print(f"Sending {len(valid_data)} records to Sheets...")
+        print("Sending " + str(len(valid_data)) + " records to Sheets...")
         try:
             res = requests.post(WEB_APP_URL, json=valid_data, headers={"Content-Type": "application/json"}, timeout=12)
-            print("Sheets Response:", res.text)
+            print("Sheets Response: " + res.text)
         except Exception as e:
-            print("Error posting to Sheets:", e)
+            print("Error posting to Sheets: " + str(e))
     else:
         print("WARNING: No valid ratings found. Post skipped.")
 
