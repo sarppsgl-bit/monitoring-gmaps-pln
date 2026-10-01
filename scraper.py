@@ -25,44 +25,54 @@ def extract_from_maps_data(text):
     rating = 0.0
     reviews = 0
 
-    # 1. Cari pola rating desimal (misal 4.4 atau 4,4) di dekat indikator rating/ulasan
-    pat_digit = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
-    
-    # Tangkap rating
-    r_matches = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', text, re.IGNORECASE)
-    r_matches += re.findall(r'Rating:\s*' + pat_digit, text, re.IGNORECASE)
-    r_matches += re.findall(r'aria-label="[^"]*?' + pat_digit, text, re.IGNORECASE)
-    r_matches += re.findall(r'\[\s*(' + pat_digit + r')\s*,\s*[' + DIGITS + r']+\s*\]', text)
-
-    for rm in r_matches:
+    # 1. Tangkap Array Internal Google Maps: e.g. [4.4, 76] atau [4.39999, 76]
+    pat_array = r'\[\s*(1\.[0-9]|2\.[0-9]|3\.[0-9]|4\.[0-9]|5\.0|[1-5])\s*,\s*([' + DIGITS + r'\.]+)\s*\]'
+    arr_matches = re.findall(pat_array, text)
+    for r_val, rev_val in arr_matches:
         try:
-            val = float(str(rm).replace(',', '.'))
-            if str(int(val)) in "12345":
-                rating = val
+            v = float(r_val)
+            if 1.0 &lt;= v &lt;= 5.0:
+                rating = round(v, 1)
+                r_clean = rev_val.replace('.', '')
+                if r_clean.isdigit():
+                    reviews = int(r_clean)
                 break
         except Exception:
             pass
 
-    # 2. Tangkap jumlah ulasan
-    pat_rev = f"([{DIGITS}.]+)"
-    rev_matches = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', text, re.IGNORECASE)
-    rev_matches += re.findall(r'\[\s*[' + DIGITS + r'\.]+\s*,\s*(' + pat_rev + r')\s*\]', text)
+    # 2. Fallback jika array internal belum kena
+    if rating == 0.0:
+        pat_digit = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
+        r_matches = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', text, re.IGNORECASE)
+        r_matches += re.findall(r'Rating:\s*' + pat_digit, text, re.IGNORECASE)
+        r_matches += re.findall(r'aria-label="[^"]*?' + pat_digit, text, re.IGNORECASE)
 
-    for rev in rev_matches:
-        try:
-            r_clean = str(rev).replace('.', '')
-            if r_clean.isdigit():
-                reviews = int(r_clean)
-                break
-        except Exception:
-            pass
+        for rm in r_matches:
+            try:
+                val = float(str(rm).replace(',', '.'))
+                if str(int(val)) in "12345":
+                    rating = round(val, 1)
+                    break
+            except Exception:
+                pass
+
+    if reviews == 0:
+        pat_rev = f"([{DIGITS}.]+)"
+        rev_matches = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', text, re.IGNORECASE)
+        for rev in rev_matches:
+            try:
+                r_clean = str(rev).replace('.', '')
+                if r_clean.isdigit():
+                    reviews = int(r_clean)
+                    break
+            except Exception:
+                pass
 
     return rating, reviews
 
 def fetch_unit(unit):
     name = unit["namaUnit"]
     
-    # Coba Endpoint 1: Google Maps Search Mode (tbm=map)
     params_maps = {
         "q": "PLN " + name,
         "tbm": "map",
@@ -80,10 +90,10 @@ def fetch_unit(unit):
     except Exception as e:
         print("Error fetching Maps " + name + ": " + str(e))
 
-    # Fallback ke Google Search biasa jika tbm=map belum memunculkan angka
+    # Fallback pencarian web jika rating masih 0
     if rating == 0.0:
         params_web = {
-            "q": "PLN " + name + " rating ulasan",
+            "q": "PLN " + name + " Google Maps",
             "hl": "id",
             "gl": "id"
         }
