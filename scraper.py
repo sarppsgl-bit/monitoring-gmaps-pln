@@ -26,12 +26,12 @@ def extract_from_maps_data(text):
     reviews = 0
 
     # 1. Tangkap Array Internal Google Maps: e.g. [4.4, 76] atau [4.39999, 76]
-    pat_array = r'\[\s*(1\.[0-9]|2\.[0-9]|3\.[0-9]|4\.[0-9]|5\.0|[1-5])\s*,\s*([' + DIGITS + r'\.]+)\s*\]'
+    pat_array = r'\[\s*(1\.|2\.|3\.|4\.|5\.0|)\s*,\s*([' + DIGITS + r'\.]+)\s*\]'
     arr_matches = re.findall(pat_array, text)
     for r_val, rev_val in arr_matches:
         try:
             v = float(r_val)
-            if 1.0 &lt;= v &lt;= 5.0:
+            if int(v) in (1, 2, 3, 4, 5):
                 rating = round(v, 1)
                 r_clean = rev_val.replace('.', '')
                 if r_clean.isdigit():
@@ -50,7 +50,7 @@ def extract_from_maps_data(text):
         for rm in r_matches:
             try:
                 val = float(str(rm).replace(',', '.'))
-                if str(int(val)) in "12345":
+                if int(val) in (1, 2, 3, 4, 5):
                     rating = round(val, 1)
                     break
             except Exception:
