@@ -27,7 +27,44 @@ def extract_rating(html):
     matches = re.findall(pattern + r'\s*(?:★|bintang|stars|dari)', html, re.IGNORECASE)
     matches += re.findall(r'Rating:\s*' + pattern, html, re.IGNORECASE)
     matches += re.findall(r'aria-label="' + pattern, html, re.IGNORECASE)
-    matches += re.findall(r'class="[^"]*"&gt;' + pattern + r' {name}: Rating={rating}, Reviews={reviews}")
+    for val_str in matches:
+        try:
+            val = float(val_str.replace(',', '.'))
+            if str(int(val)) in "12345":
+                return val
+        except Exception:
+            pass
+    return 0.0
+
+def extract_reviews(html):
+    pattern = f"([{DIGITS}.]+)"
+    matches = re.findall(pattern + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
+    for val_str in matches:
+        try:
+            rev_clean = val_str.replace('.', '')
+            if rev_clean.isdigit():
+                return int(rev_clean)
+        except Exception:
+            pass
+    return 0
+
+def fetch_unit(unit):
+    name = unit["namaUnit"]
+    params = {
+        "q": "PLN " + name,
+        "tbm": "lcl",
+        "hl": "id",
+        "gl": "id"
+    }
+    rating, reviews = 0.0, 0
+    try:
+        res = requests.get("https://www.google.com/search", params=params, headers=HEADERS, timeout=12)
+        if res.status_code == 200:
+            rating = extract_rating(res.text)
+            reviews = extract_reviews(res.text)
+    except Exception as e:
+        print(f"Error fetching {name}: {e}")
+    print(f"RESULT : {name} Rating={rating}, Reviews={reviews}")
     return {
         "idUnit": unit["idUnit"],
         "namaUnit": name,
