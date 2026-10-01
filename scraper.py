@@ -1,5 +1,4 @@
-```
-```python
+python
 import json
 import re
 import requests
@@ -80,5 +79,3 @@ def scrape():
 
 if __name__ == "__main__":
     scrape()
-
-```
