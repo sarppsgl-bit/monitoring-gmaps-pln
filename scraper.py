@@ -29,7 +29,6 @@ def extract_rating(html):
     for val_str in matches:
         try:
             val = float(val_str.replace(',', '.'))
-            # Cek range 1.0 - 5.0 tanpa memakai simbol kurang dari / lebih dari
             if str(int(val)) in "12345":
                 return val
         except Exception:
@@ -50,7 +49,8 @@ def extract_reviews(html):
 
 def fetch_unit(unit):
     name = unit["namaUnit"]
-    url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + "&amp;hl=id&amp;gl=id"
+    amp = chr(38)
+    url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + amp + "hl=id" + amp + "gl=id"
     rating, reviews = 0.0, 0
     try:
         res = requests.get(url, headers=HEADERS, timeout=12)
@@ -70,7 +70,9 @@ def fetch_unit(unit):
 def main():
     print("=== STARTING GMAPS RATING SCRAPER ===")
     results = [fetch_unit(u) for u in UNITS]
-    valid_data = [r for r in results if r["rating"] &gt; 0]
+    
+    # Filter rating valid tanpa menggunakan simbol lebih besar dari
+    valid_data = [r for r in results if r["rating"] != 0.0]
     
     if valid_data:
         print(f"Sending {len(valid_data)} records to Sheets...")
