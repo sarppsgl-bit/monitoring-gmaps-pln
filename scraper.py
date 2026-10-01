@@ -29,7 +29,8 @@ def extract_rating(html):
     for val_str in matches:
         try:
             val = float(val_str.replace(',', '.'))
-            if 1.0 &lt;= val &lt;= 5.0:
+            # Cek range 1.0 - 5.0 tanpa memakai simbol kurang dari / lebih dari
+            if str(int(val)) in "12345":
                 return val
         except Exception:
             pass
@@ -79,7 +80,7 @@ def main():
         except Exception as e:
             print("Error posting to Sheets:", e)
     else:
-        print("WARNING: No valid ratings (&gt; 0) found. Post skipped.")
+        print("WARNING: No valid ratings found. Post skipped.")
 
 if __name__ == "__main__":
     main()
