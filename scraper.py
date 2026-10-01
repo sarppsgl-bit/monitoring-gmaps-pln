@@ -56,23 +56,22 @@ def parse_rating_reviews(html_content):
     return rating, reviews
 
 def run_scraper():
-    print("=== STARTING GMAPS RATING SCRAPER ===")
+    print("=== STARTING GMAPS RATING SCRAPER (FAST LIGHTWEIGHT) ===")
     results = []
 
-    # Metode 1: HTTP Requests
     for u in UNITS:
         query_str = urllib.parse.quote("PLN " + u["namaUnit"])
         target_url = f"https://www.google.com/search?q={query_str}&amp;hl=id&amp;gl=id"
         rating, reviews = 0.0, 0
 
         try:
-            resp = requests.get(target_url, headers=HEADERS, timeout=12)
+            resp = requests.get(target_url, headers=HEADERS, timeout=10)
             if resp.status_code == 200:
                 rating, reviews = parse_rating_reviews(resp.text)
         except Exception as e:
             print(f"HTTP fetch error for {u['namaUnit']}: {e}")
 
-        print(f"REQUESTS RESULT -&gt; {u['namaUnit']}: Rating={rating}, Reviews={reviews}")
+        print(f"FETCH -&gt; {u['namaUnit']}: Rating={rating}, Reviews={reviews}")
         results.append({
             "idUnit": u["idUnit"],
             "namaUnit": u["namaUnit"],
@@ -80,50 +79,12 @@ def run_scraper():
             "reviews": reviews
         })
 
-    # Metode 2: Playwright Fallback
-    if any(item["rating"] == 0 for item in results):
-        print("Mencoba Playwright fallback untuk unit yang bernilai 0...")
-        try:
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                context = browser.new_context(
-                    user_agent=HEADERS["User-Agent"],
-                    locale="id-ID"
-                )
-                context.add_cookies([{
-                    "name": "SOCS",
-                    "value": "CAISHAgBEhJnd3NfMjAyMzA4MTAtMF9SQzEaAmVuIAEaBgiAo_CmBg",
-                    "domain": ".google.com",
-                    "path": "/"
-                }])
-                page = context.new_page()
-
-                for item in results:
-                    if item["rating"] == 0:
-                        q_str = urllib.parse.quote("PLN " + item["namaUnit"])
-                        t_url = f"https://www.google.com/search?q={q_str}&amp;hl=id&amp;gl=id"
-                        try:
-                            page.goto(t_url, timeout=15000, wait_until="domcontentloaded")
-                            page.wait_for_timeout(2000)
-                            r_val, rev_val = parse_rating_reviews(page.content())
-                            if r_val &gt; 0:
-                                item["rating"] = r_val
-                                item["reviews"] = rev_val
-                            print(f"PLAYWRIGHT RESULT -&gt; {item['namaUnit']}: Rating={r_val}, Reviews={rev_val}")
-                        except Exception as pw_fetch_err:
-                            print(f"Playwright error for {item['namaUnit']}: {pw_fetch_err}")
-
-                browser.close()
-        except Exception as pw_err:
-            print(f"Playwright fallback skipped: {pw_err}")
-
     valid_data = [item for item in results if item["rating"] &gt; 0]
     print("FINAL SCRAPE DATA:", results)
 
     if valid_data:
         try:
-            post_res = requests.post(WEB_APP_URL, json=valid_data, headers={"Content-Type": "application/json"}, timeout=15)
+            post_res = requests.post(WEB_APP_URL, json=valid_data, headers={"Content-Type": "application/json"}, timeout=10)
             print("POST RESPONSE FROM SHEETS:", post_res.text)
         except Exception as post_err:
             print("Error sending to Google Sheets:", post_err)
