@@ -25,48 +25,44 @@ def extract_from_maps_data(text):
     rating = 0.0
     reviews = 0
 
-    # 1. Tangkap Array Internal Google Maps: e.g. [4.4, 76] atau [4.39999, 76]
-    pat_array = r'\[\s*(1\.|2\.|3\.|4\.|5\.0|)\s*,\s*([' + DIGITS + r'\.]+)\s*\]'
-    arr_matches = re.findall(pat_array, text)
-    for r_val, rev_val in arr_matches:
+    # 1. Tangkap Array Internal Google Maps: [4.4, 76] atau [4.39999, 76]
+    m_arr = re.findall(r'\[\s*([1-5]\.[0-9]+)\s*,\s*([0-9]+)\s*\]', text)
+    for r_str, rev_str in m_arr:
         try:
-            v = float(r_val)
+            v = float(r_str)
             if int(v) in (1, 2, 3, 4, 5):
                 rating = round(v, 1)
-                r_clean = rev_val.replace('.', '')
-                if r_clean.isdigit():
-                    reviews = int(r_clean)
+                reviews = int(rev_str)
+                return rating, reviews
+        except Exception:
+            pass
+
+    # 2. Tangkap dari teks visual / aria-label / ratingValue
+    m_rat = re.findall(r'([1-5][.,][0-9])\s*(?:★|bintang|stars|dari|out of)', text, re.IGNORECASE)
+    m_rat += re.findall(r'aria-label="[^"]*?([1-5][.,][0-9])', text, re.IGNORECASE)
+    m_rat += re.findall(r'Rating:\s*([1-5][.,][0-9])', text, re.IGNORECASE)
+    m_rat += re.findall(r'"ratingValue"\s*:\s*"?([1-5][.,][0-9])"?', text, re.IGNORECASE)
+
+    for r_str in m_rat:
+        try:
+            v = float(r_str.replace(',', '.'))
+            if int(v) in (1, 2, 3, 4, 5):
+                rating = round(v, 1)
                 break
         except Exception:
             pass
 
-    # 2. Fallback jika array internal belum kena
-    if rating == 0.0:
-        pat_digit = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
-        r_matches = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', text, re.IGNORECASE)
-        r_matches += re.findall(r'Rating:\s*' + pat_digit, text, re.IGNORECASE)
-        r_matches += re.findall(r'aria-label="[^"]*?' + pat_digit, text, re.IGNORECASE)
+    m_rev = re.findall(r'([0-9.]+)\s*(?:ulasan|reviews|penilaian)', text, re.IGNORECASE)
+    m_rev += re.findall(r'"reviewCount"\s*:\s*"?([0-9.]+)"?', text, re.IGNORECASE)
 
-        for rm in r_matches:
-            try:
-                val = float(str(rm).replace(',', '.'))
-                if int(val) in (1, 2, 3, 4, 5):
-                    rating = round(val, 1)
-                    break
-            except Exception:
-                pass
-
-    if reviews == 0:
-        pat_rev = f"([{DIGITS}.]+)"
-        rev_matches = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', text, re.IGNORECASE)
-        for rev in rev_matches:
-            try:
-                r_clean = str(rev).replace('.', '')
-                if r_clean.isdigit():
-                    reviews = int(r_clean)
-                    break
-            except Exception:
-                pass
+    for rev_str in m_rev:
+        try:
+            r_clean = rev_str.replace('.', '')
+            if r_clean.isdigit():
+                reviews = int(r_clean)
+                break
+        except Exception:
+            pass
 
     return rating, reviews
 
