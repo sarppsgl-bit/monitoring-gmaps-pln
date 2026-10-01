@@ -1,5 +1,6 @@
-import json
+import sys
 import re
+import urllib.parse
 import requests
 from playwright.sync_api import sync_playwright
 
@@ -15,7 +16,7 @@ UNITS = [
 def scrape():
     results = []
     print("Memulai scraping Google Maps 4 Unit PLN Sigli...")
-    
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
@@ -27,60 +28,58 @@ def scrape():
 
             for u in UNITS:
                 query = f"PLN {u['namaUnit']}"
-                url = f"https://www.google.com/search?q={requests.utils.quote(query)}&amp;hl=id"
+                encoded_query = urllib.parse.quote(query)
+                url = f"https://www.google.com/search?q={encoded_query}&amp;hl=id"
                 
                 rating = 0.0
                 reviews = 0
-                
+
                 try:
                     page.goto(url, timeout=30000, wait_until="domcontentloaded")
-                    page.wait_for_timeout(3000)  # Nunggu 3 detik agar elemen rating muncul sempurna
+                    page.wait_for_timeout(2000)
                     content = page.content()
 
-                    # Extract Rating
+                    # Deteksi Rating
                     r1 = re.search(r'([0-9][\.,][0-9])\s*(?:★|bintang|stars|dari)', content, re.IGNORECASE)
                     r2 = re.search(r'Rating:\s*([0-9][\.,][0-9])', content, re.IGNORECASE)
                     r3 = re.search(r'aria-label="([0-9][\.,][0-9])', content, re.IGNORECASE)
                     
                     r_match = r1 or r2 or r3
-                    
                     if r_match:
                         rating = float(r_match.group(1).replace(',', '.'))
 
-                    # Extract Reviews
+                    # Deteksi Jumlah Ulasan
                     rev1 = re.search(r'([0-9\.]+)\s*(?:ulasan|reviews|penilaian)', content, re.IGNORECASE)
                     rev2 = re.search(r'\\(([0-9\.]+)\\)\s*ulasan', content, re.IGNORECASE)
                     
                     rev_match = rev1 or rev2
-                    
                     if rev_match:
                         rev_str = rev_match.group(1).replace('.', '')
                         if rev_str.isdigit():
                             reviews = int(rev_str)
 
-                    print(f"FETCH SUCCESS: {u['namaUnit']} -&gt; Rating: {rating}, Ulasan: {reviews}")
-                except Exception as e:
-                    print(f"ERROR fetching {u['namaUnit']}: {e}")
+                    print(f"FETCH: {u['namaUnit']} -&gt; Rating: {rating}, Ulasan: {reviews}")
+                except Exception as err_fetch:
+                    print(f"FETCH ERROR {u['namaUnit']}: {err_fetch}")
 
-                if rating &gt; 0:
-                    results.append({
-                        "idUnit": u["idUnit"],
-                        "namaUnit": u["namaUnit"],
-                        "rating": rating,
-                        "reviews": reviews
-                    })
+                results.append({
+                    "idUnit": u["idUnit"],
+                    "namaUnit": u["namaUnit"],
+                    "rating": rating,
+                    "reviews": reviews
+                })
 
             browser.close()
-    except Exception as e_playwright:
-        print(f"CRITICAL PLAYWRIGHT ERROR: {e_playwright}")
+    except Exception as err_browser:
+        print(f"BROWSER ERROR: {err_browser}")
 
-    # Kirim hasil ke Google Sheets Web App
+    # Kirim hasil ke Google Sheets
     if results:
         try:
-            resp = requests.post(WEB_APP_URL, json=results, headers={"Content-Type": "application/json"})
-            print("WEB APP RESPONSE:", resp.text)
-        except Exception as err:
-            print("SEND ERROR:", err)
+            resp = requests.post(WEB_APP_URL, json=results, headers={"Content-Type": "application/json"}, timeout=15)
+            print("RESPON GOOGLE SHEETS:", resp.text)
+        except Exception as err_send:
+            print("SEND ERROR:", err_send)
 
 if __name__ == "__main__":
     scrape()
