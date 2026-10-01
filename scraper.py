@@ -15,39 +15,42 @@ UNITS = [
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept": "*/*",
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
 DIGITS = string.digits
 
-def extract_rating_and_reviews(html):
+def extract_from_maps_data(text):
     rating = 0.0
     reviews = 0
 
+    # 1. Cari pola rating desimal (misal 4.4 atau 4,4) di dekat indikator rating/ulasan
     pat_digit = f"([{DIGITS}]+(?:[.,][{DIGITS}]+)?)"
     
-    candidates = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', html, re.IGNORECASE)
-    candidates += re.findall(r'Rating:\s*' + pat_digit, html, re.IGNORECASE)
-    candidates += re.findall(r'aria-label="[^"]*?' + pat_digit, html, re.IGNORECASE)
-    candidates += re.findall(r'"ratingValue"\s*:\s*"?(' + pat_digit + r')"?', html, re.IGNORECASE)
+    # Tangkap rating
+    r_matches = re.findall(pat_digit + r'\s*(?:★|bintang|stars|dari|out of)', text, re.IGNORECASE)
+    r_matches += re.findall(r'Rating:\s*' + pat_digit, text, re.IGNORECASE)
+    r_matches += re.findall(r'aria-label="[^"]*?' + pat_digit, text, re.IGNORECASE)
+    r_matches += re.findall(r'\[\s*(' + pat_digit + r')\s*,\s*[' + DIGITS + r']+\s*\]', text)
 
-    for c in candidates:
+    for rm in r_matches:
         try:
-            v = float(str(c).replace(',', '.'))
-            if str(int(v)) in "12345":
-                rating = v
+            val = float(str(rm).replace(',', '.'))
+            if str(int(val)) in "12345":
+                rating = val
                 break
         except Exception:
             pass
 
+    # 2. Tangkap jumlah ulasan
     pat_rev = f"([{DIGITS}.]+)"
-    rev_candidates = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', html, re.IGNORECASE)
-    rev_candidates += re.findall(r'"reviewCount"\s*:\s*"?(' + pat_rev + r')"?', html, re.IGNORECASE)
+    rev_matches = re.findall(pat_rev + r'\s*(?:ulasan|reviews|penilaian)', text, re.IGNORECASE)
+    rev_matches += re.findall(r'\[\s*[' + DIGITS + r'\.]+\s*,\s*(' + pat_rev + r')\s*\]', text)
 
-    for r_str in rev_candidates:
+    for rev in rev_matches:
         try:
-            r_clean = str(r_str).replace('.', '')
+            r_clean = str(rev).replace('.', '')
             if r_clean.isdigit():
                 reviews = int(r_clean)
                 break
@@ -58,26 +61,39 @@ def extract_rating_and_reviews(html):
 
 def fetch_unit(unit):
     name = unit["namaUnit"]
-    params = {
-        "q": "PLN " + name + " Maps",
+    
+    # Coba Endpoint 1: Google Maps Search Mode (tbm=map)
+    params_maps = {
+        "q": "PLN " + name,
+        "tbm": "map",
         "hl": "id",
         "gl": "id"
     }
+    
     rating, reviews = 0.0, 0
+    
     try:
-        res = requests.get("https://www.google.com/search", params=params, headers=HEADERS, timeout=12)
-        
-        # Tangkap title tag menggunakan hex \x3c (&lt;) dan \x3e (&gt;)
-        title_pat = r'\x3ctitle\x3e(.*?)\x3c/title\x3e'
-        title_m = re.search(title_pat, res.text, re.IGNORECASE)
-        p_title = title_m.group(1) if title_m else "No Title"
-        print("Fetch " + name + " - Status: " + str(res.status_code) + " - Title: " + p_title)
-        
+        res = requests.get("https://www.google.com/search", params=params_maps, headers=HEADERS, timeout=12)
+        print("Fetch Maps " + name + " - Status: " + str(res.status_code) + " - Length: " + str(len(res.text)))
         if res.status_code == 200:
-            rating, reviews = extract_rating_and_reviews(res.text)
+            rating, reviews = extract_from_maps_data(res.text)
     except Exception as e:
-        print("Error fetching " + name + ": " + str(e))
-        
+        print("Error fetching Maps " + name + ": " + str(e))
+
+    # Fallback ke Google Search biasa jika tbm=map belum memunculkan angka
+    if rating == 0.0:
+        params_web = {
+            "q": "PLN " + name + " rating ulasan",
+            "hl": "id",
+            "gl": "id"
+        }
+        try:
+            res_web = requests.get("https://www.google.com/search", params=params_web, headers=HEADERS, timeout=12)
+            if res_web.status_code == 200:
+                rating, reviews = extract_from_maps_data(res_web.text)
+        except Exception as e_web:
+            print("Error fetching Web " + name + ": " + str(e_web))
+
     print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews))
     return {
         "idUnit": unit["idUnit"],
