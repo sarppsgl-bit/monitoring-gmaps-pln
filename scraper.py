@@ -24,15 +24,16 @@ DIGITS = string.digits
 def extract_rating_and_reviews(html):
     candidates = []
 
-    # 1. Strategy 1: Google Maps JS Data Payload (IEEE float32 with 2+ decimal places, e.g., 4.399999618530273, 76)
-    gmaps_matches = re.findall(r'(?:\[|,)\s*(\.\d{2,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
+    # 1. Strategy 1: Google Maps JS Data Payload
+    # Matches float between 1.0 and 5.9 (e.g. 4.399999618530273 or 4.6) followed by review count
+    gmaps_matches = re.findall(r'(?:\[|,)\s*([1-5]\.\d{1,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
     for m in gmaps_matches:
         if isinstance(m, tuple) and len(m) == 2:
             r_str, rev_str = m
             try:
                 val = float(r_str)
                 rev_num = int(rev_str)
-                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
                     candidates.append((round(val, 1), rev_num))
             except Exception:
                 pass
@@ -45,7 +46,7 @@ def extract_rating_and_reviews(html):
             try:
                 val = float(r_str.replace(',', '.'))
                 rev_num = int(rev_str.replace('.', ''))
-                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
                     candidates.append((round(val, 1), rev_num))
             except Exception:
                 pass
@@ -57,13 +58,13 @@ def extract_rating_and_reviews(html):
         try:
             val = float(m_rat.group(1).replace(',', '.'))
             rev_num = int(m_rev.group(1).replace('.', ''))
-            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
                 candidates.append((round(val, 1), rev_num))
         except Exception:
             pass
 
     if candidates:
-        # Sort candidates by review count descending so the real place entity wins
+        # Sort candidates by review count descending so real place entity (highest reviews) wins
         candidates.sort(key=lambda x: x[1], reverse=True)
         return candidates[0]
 
