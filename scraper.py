@@ -25,7 +25,7 @@ def extract_rating_and_reviews(html):
     candidates = []
 
     # 1. Strategy 1: Google Maps JS Data Payload (IEEE float32 with 2+ decimal places, e.g., 4.399999618530273, 76)
-    gmaps_matches = re.findall(r'(?:\[|,)\s*([1-5]\.\d{2,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
+    gmaps_matches = re.findall(r'(?:\[|,)\s*(\.\d{2,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
     for m in gmaps_matches:
         if isinstance(m, tuple) and len(m) == 2:
             r_str, rev_str = m
@@ -63,7 +63,7 @@ def extract_rating_and_reviews(html):
             pass
 
     if candidates:
-        # Sort candidates by review count descending so the real place entity (which has highest reviews) wins!
+        # Sort candidates by review count descending so the real place entity wins
         candidates.sort(key=lambda x: x[1], reverse=True)
         return candidates[0]
 
