@@ -22,37 +22,31 @@ HEADERS = {
 DIGITS = string.digits
 
 def extract_rating_and_reviews(html):
-    rating = 0.0
-    reviews = 0
+    candidates = []
 
-    # 1. Strategy 1: Google Maps JS Data Payload (IEEE Float for Place Rating)
-    # Pattern matches floating numbers (e.g. 4.399999618530273 or 4.6) followed by review count
-    gmaps_matches = re.findall(r'(?:\[|,)\s*([0-9]+\.[0-9]+|[0-9]+)\s*,\s*([0-9]{1,5})\s*(?:\]|,)', html)
+    # 1. Strategy 1: Google Maps JS Data Payload (IEEE float32 with 2+ decimal places, e.g., 4.399999618530273, 76)
+    gmaps_matches = re.findall(r'(?:\[|,)\s*([1-5]\.\d{2,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
     for m in gmaps_matches:
         if isinstance(m, tuple) and len(m) == 2:
             r_str, rev_str = m
             try:
                 val = float(r_str)
                 rev_num = int(rev_str)
-                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
-                    rating = round(val, 1)
-                    reviews = rev_num
-                    return rating, reviews
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                    candidates.append((round(val, 1), rev_num))
             except Exception:
                 pass
 
     # 2. Strategy 2: aria-label in Google Search Knowledge Panel
-    aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
+    aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
     for m in aria_matches:
         if isinstance(m, tuple) and len(m) == 2:
             r_str, rev_str = m
             try:
                 val = float(r_str.replace(',', '.'))
                 rev_num = int(rev_str.replace('.', ''))
-                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
-                    rating = round(val, 1)
-                    reviews = rev_num
-                    return rating, reviews
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                    candidates.append((round(val, 1), rev_num))
             except Exception:
                 pass
 
@@ -63,14 +57,17 @@ def extract_rating_and_reviews(html):
         try:
             val = float(m_rat.group(1).replace(',', '.'))
             rev_num = int(m_rev.group(1).replace('.', ''))
-            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
-                rating = round(val, 1)
-                reviews = rev_num
-                return rating, reviews
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                candidates.append((round(val, 1), rev_num))
         except Exception:
             pass
 
-    return rating, reviews
+    if candidates:
+        # Sort candidates by review count descending so the real place entity (which has highest reviews) wins!
+        candidates.sort(key=lambda x: x[1], reverse=True)
+        return candidates[0]
+
+    return 0.0, 0
 
 def fetch_unit(unit):
     name = unit["namaUnit"]
