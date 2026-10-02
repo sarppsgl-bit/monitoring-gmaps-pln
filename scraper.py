@@ -19,58 +19,63 @@ HEADERS = {
     "Accept-Language": "id-ID,id;q=0.9,en-US;q=0.8,en;q=0.7"
 }
 
-VALID_RATINGS = tuple(str(round(3.0 + i * 0.1, 1)) for i in range(21))
+DIGITS = string.digits
 
-def is_valid_rating_range(val):
-    try:
-        s_val = str(round(float(val), 1))
-        return s_val in VALID_RATINGS
-    except Exception:
-        return False
-
-def extract_gmaps_data(html):
+def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
 
-    # 1. Ekstrak dari Google Search Knowledge Panel / aria-label
-    aria_m = re.findall(r'aria-label="[^"]*?([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
-    for r_str, rev_str in aria_m:
-        try:
-            val = float(r_str.replace(',', '.'))
-            rev_num = int(rev_str.replace('.', ''))
-            if is_valid_rating_range(val):
-                rating = round(val, 1)
-                reviews = rev_num
-                return rating, reviews
-        except Exception:
-            pass
-
-    # 2. Ekstrak dari Schema JSON-LD (ratingValue &amp; reviewCount)
-    m_rat = re.search(r'"ratingValue"\s*:\s*"([0-9.,]+)"', html, re.IGNORECASE)
-    m_rev = re.search(r'"reviewCount"\s*:\s*"([0-9.]+)"', html, re.IGNORECASE)
-    if m_rat and m_rev:
-        try:
-            val = float(m_rat.group(1).replace(',', '.'))
-            rev_num = int(m_rev.group(1).replace('.', ''))
-            if is_valid_rating_range(val):
-                rating = round(val, 1)
-                reviews = rev_num
-                return rating, reviews
-        except Exception:
-            pass
-
-    # 3. Ekstrak dari Google Maps JS Data Block (Format: [4.4, 76])
-    matches = re.findall(r'\[\s*([0-9.]+)\s*,\s*([0-9]+)\s*\]', html)
-    for r_str, rev_str in matches:
+    # 1. Strategy 1: Google Maps JS Data Payload (IEEE float multi-decimal for place rating + review count)
+    # e.g., [4.399999618530273, 76] or [4.599999904632568, 107]
+    gmaps_matches = re.findall(r'\[\s*([1-5]\.[0-9]{3,15})\s*,\s*([1-9][' + DIGITS + r']{0,4})\s*[,\]]', html)
+    for r_str, rev_str in gmaps_matches:
         try:
             val = float(r_str)
             rev_num = int(rev_str)
-            if is_valid_rating_range(val) and rev_num not in (0, 1, 2, 3, 4):
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
                 rating = round(val, 1)
                 reviews = rev_num
                 return rating, reviews
         except Exception:
             pass
+
+    # 2. Strategy 2: Schema JSON-LD
+    m_rat = re.search(r'"ratingValue"\s*:\s*"?([1-5][.,][0-9])"?', html, re.IGNORECASE)
+    m_rev = re.search(r'"reviewCount"\s*:\s*"?([' + DIGITS + r']+)"?', html, re.IGNORECASE)
+    if m_rat and m_rev:
+        try:
+            val = float(m_rat.group(1).replace(',', '.'))
+            rev_num = int(m_rev.group(1))
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                rating = round(val, 1)
+                reviews = rev_num
+                return rating, reviews
+        except Exception:
+            pass
+
+    # 3. Strategy 3: Search HTML aria-label and text patterns
+    aria_matches = re.findall(r'aria-label="[^"]*?\b([1-5][.,][0-9])\b[^"]*?"', html, re.IGNORECASE)
+    rev_matches = re.findall(r'([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
+
+    if aria_matches:
+        for am in aria_matches:
+            try:
+                val = float(am.replace(',', '.'))
+                if int(val) in (1, 2, 3, 4, 5):
+                    rating = round(val, 1)
+                    break
+            except Exception:
+                pass
+
+    if rev_matches:
+        for rm in rev_matches:
+            try:
+                rev_num = int(rm.replace('.', ''))
+                if rev_num not in (0, 1, 2, 3, 4):
+                    reviews = rev_num
+                    break
+            except Exception:
+                pass
 
     return rating, reviews
 
@@ -79,26 +84,26 @@ def fetch_unit(unit):
     rating, reviews = 0.0, 0
     amp = chr(38)
     
-    # Percobaan 1: Google Search Standar
-    search_url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + amp + "hl=id" + amp + "gl=id"
+    # Percobaan 1: Google Maps Search URL
+    gmaps_url = "https://www.google.com/maps/search/" + urllib.parse.quote("PLN " + name)
     try:
-        res_search = requests.get(search_url, headers=HEADERS, timeout=12)
-        print("Fetch Search " + name + " - Status: " + str(res_search.status_code) + " - Length: " + str(len(res_search.text)))
-        if res_search.status_code == 200:
-            rating, reviews = extract_gmaps_data(res_search.text)
-    except Exception as e_search:
-        print("Error Search " + name + ": " + str(e_search))
+        res_gmaps = requests.get(gmaps_url, headers=HEADERS, timeout=12)
+        print("Fetch GMaps " + name + " - Status: " + str(res_gmaps.status_code) + " - Length: " + str(len(res_gmaps.text)))
+        if res_gmaps.status_code == 200:
+            rating, reviews = extract_rating_and_reviews(res_gmaps.text)
+    except Exception as e_gmaps:
+        print("Error GMaps " + name + ": " + str(e_gmaps))
 
-    # Percobaan 2: Google Maps Search URL jika masih 0
+    # Percobaan 2: Google Search Standar jika Maps masih 0
     if rating == 0.0:
-        gmaps_url = "https://www.google.com/maps/search/" + urllib.parse.quote("PLN " + name)
+        search_url = "https://www.google.com/search?q=" + urllib.parse.quote("PLN " + name) + amp + "hl=id" + amp + "gl=id"
         try:
-            res = requests.get(gmaps_url, headers=HEADERS, timeout=12)
-            print("Fetch GMaps " + name + " - Status: " + str(res.status_code) + " - Length: " + str(len(res.text)))
-            if res.status_code == 200:
-                rating, reviews = extract_gmaps_data(res.text)
-        except Exception as e:
-            print("Error GMaps " + name + ": " + str(e))
+            res_search = requests.get(search_url, headers=HEADERS, timeout=12)
+            print("Fetch Search " + name + " - Status: " + str(res_search.status_code) + " - Length: " + str(len(res_search.text)))
+            if res_search.status_code == 200:
+                rating, reviews = extract_rating_and_reviews(res_search.text)
+        except Exception as e_search:
+            print("Error Search " + name + ": " + str(e_search))
 
     print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews))
     return {
