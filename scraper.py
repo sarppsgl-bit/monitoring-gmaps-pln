@@ -29,10 +29,9 @@ def scrape_unit(context, unit):
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(4000)
 
-        # Cari kartu tempat tanpa operator pembanding
         cards = page.locator('a[href*="/maps/place/"]')
         card_count = cards.count()
-        if card_count:
+        if card_count != 0:
             target_idx = 0
             for i, card in enumerate(cards.all()[:5]):
                 label = card.get_attribute("aria-label") or card.inner_text() or ""
@@ -44,7 +43,7 @@ def scrape_unit(context, unit):
 
         content = page.content()
 
-        # 1. Ambil rating dan total ulasan dari panel detail tempat
+        # 1. Ambil rating dan total ulasan
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -84,7 +83,7 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
-        # 3. Ekstrak Rincian Bintang 1-5 (Fix Regex Capture Group)
+        # 3. Ekstrak Rincian Bintang 1-5 (FIXED REGEX)
         star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
