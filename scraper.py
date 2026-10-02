@@ -25,10 +25,9 @@ def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
 
-    # Strategy 1: Google Maps JS Array Payload
-    # Pattern matches float with 1-15 decimals preceded by comma or bracket, followed by review count
-    # e.g., [null,null,4.399999618530273,76,["PLN UP3 Sigli"]]
-    gmaps_matches = re.findall(r'(?:[|,)\s*([1-5]\.[0-9]{1,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
+    # 1. Strategy 1: Google Maps JS Array Payload
+    # Pattern matches float/int (e.g. 4.399999618530273 or 4.6) followed by review count (e.g. 76 or 107)
+    gmaps_matches = re.findall(r'(?:[|,)\s*([0-9]+\.[0-9]+|[0-9]+)\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
     for r_str, rev_str in gmaps_matches:
         try:
             val = float(r_str)
@@ -40,8 +39,7 @@ def extract_rating_and_reviews(html):
         except Exception:
             pass
 
-    # Strategy 2: aria-label in Google Search Knowledge Panel
-    # e.g. aria-label="4,4 bintang 76 ulasan" or aria-label="4.6 bintang 107 ulasan"
+    # 2. Strategy 2: aria-label in Google Search Knowledge Panel
     aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
     for r_str, rev_str in aria_matches:
         try:
@@ -54,7 +52,7 @@ def extract_rating_and_reviews(html):
         except Exception:
             pass
 
-    # Strategy 3: Schema JSON-LD (ratingValue and reviewCount)
+    # 3. Strategy 3: Schema JSON-LD
     m_rat = re.search(r'"ratingValue"\s*:\s*"?([0-9.,]+)"?', html, re.IGNORECASE)
     m_rev = re.search(r'"reviewCount"\s*:\s*"?([' + DIGITS + r']+)"?', html, re.IGNORECASE)
     if m_rat and m_rev:
