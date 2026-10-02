@@ -25,9 +25,10 @@ def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
 
-    # 1. Strategy 1: Google Maps JS Data Payload (IEEE float multi-decimal for place rating + review count)
-    # e.g., [4.399999618530273, 76] or [4.599999904632568, 107]
-    gmaps_matches = re.findall(r'\[\s*([1-5]\.[0-9]{3,15})\s*,\s*([1-9][' + DIGITS + r']{0,4})\s*[,\]]', html)
+    # Strategy 1: Google Maps JS Array Payload
+    # Pattern matches float with 1-15 decimals preceded by comma or bracket, followed by review count
+    # e.g., [null,null,4.399999618530273,76,["PLN UP3 Sigli"]]
+    gmaps_matches = re.findall(r'(?:[|,)\s*([1-5]\.[0-9]{1,15})\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
     for r_str, rev_str in gmaps_matches:
         try:
             val = float(r_str)
@@ -39,8 +40,22 @@ def extract_rating_and_reviews(html):
         except Exception:
             pass
 
-    # 2. Strategy 2: Schema JSON-LD
-    m_rat = re.search(r'"ratingValue"\s*:\s*"?([1-5][.,][0-9])"?', html, re.IGNORECASE)
+    # Strategy 2: aria-label in Google Search Knowledge Panel
+    # e.g. aria-label="4,4 bintang 76 ulasan" or aria-label="4.6 bintang 107 ulasan"
+    aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
+    for r_str, rev_str in aria_matches:
+        try:
+            val = float(r_str.replace(',', '.'))
+            rev_num = int(rev_str.replace('.', ''))
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+                rating = round(val, 1)
+                reviews = rev_num
+                return rating, reviews
+        except Exception:
+            pass
+
+    # Strategy 3: Schema JSON-LD (ratingValue and reviewCount)
+    m_rat = re.search(r'"ratingValue"\s*:\s*"?([0-9.,]+)"?', html, re.IGNORECASE)
     m_rev = re.search(r'"reviewCount"\s*:\s*"?([' + DIGITS + r']+)"?', html, re.IGNORECASE)
     if m_rat and m_rev:
         try:
@@ -52,30 +67,6 @@ def extract_rating_and_reviews(html):
                 return rating, reviews
         except Exception:
             pass
-
-    # 3. Strategy 3: Search HTML aria-label and text patterns
-    aria_matches = re.findall(r'aria-label="[^"]*?\b([1-5][.,][0-9])\b[^"]*?"', html, re.IGNORECASE)
-    rev_matches = re.findall(r'([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
-
-    if aria_matches:
-        for am in aria_matches:
-            try:
-                val = float(am.replace(',', '.'))
-                if int(val) in (1, 2, 3, 4, 5):
-                    rating = round(val, 1)
-                    break
-            except Exception:
-                pass
-
-    if rev_matches:
-        for rm in rev_matches:
-            try:
-                rev_num = int(rm.replace('.', ''))
-                if rev_num not in (0, 1, 2, 3, 4):
-                    reviews = rev_num
-                    break
-            except Exception:
-                pass
 
     return rating, reviews
 
