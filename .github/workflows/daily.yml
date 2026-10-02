@@ -2,8 +2,8 @@ name: Daily GMaps Rating Scraper
 
 on:
   schedule:
-    - cron: '0 0 * * *'
-  workflow_dispatch:
+    - cron: '0 0 * * *' # Jalan otomatis setiap jam 07:00 WIB
+  workflow_dispatch: # Bisa dijalankan manual
 
 jobs:
   scrape-job:
@@ -12,7 +12,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
@@ -20,7 +20,8 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests playwright
+          playwright install chromium --with-deps
 
-      - name: Run Scraper Script
+      - name: Run Playwright Scraper
         run: python scraper.py
