@@ -19,6 +19,7 @@ def scrape_unit(context, unit):
     
     rating = 0.0
     reviews = 0
+    stars = {"bintang5": 0, "bintang4": 0, "bintang3": 0, "bintang2": 0, "bintang1": 0}
 
     page = context.new_page()
     print("Navigating to " + name + "...")
@@ -35,7 +36,7 @@ def scrape_unit(context, unit):
 
         content = page.content()
 
-        # 1. Ambil rating &amp; ulasan dari aria-label panel detail
+        # 1. Ambil rating dan ulasan dari aria-label panel detail
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -48,7 +49,7 @@ def scrape_unit(context, unit):
             except Exception:
                 pass
 
-        # 2. Fallback: Ambil angka rating &amp; ulasan dari elemen text panel detail
+        # 2. Fallback untuk rating dan total ulasan
         if rating == 0.0 or reviews == 0:
             spans = page.locator('div.F7L3fd span, span[aria-hidden="true"]').all_text_contents()
             for s in spans:
@@ -66,7 +67,7 @@ def scrape_unit(context, unit):
                 nums = re.findall(r'([0-9.]+)', rb)
                 if nums:
                     try:
-                        r_clean = nums[0].replace('.', '')
+                        r_clean = nums.replace('.', '')
                         if r_clean.isdigit():
                             r_int = int(r_clean)
                             if r_int not in (0, 1, 2, 3, 4):
@@ -75,17 +76,32 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
+        # 3. Ekstrak Rincian Bintang 1-5 (Histogram)
+        star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars)[,\s]+([0-9.]+)', content, re.IGNORECASE)
+        for star_num, count_str in star_matches:
+            try:
+                cnt = int(count_str.replace('.', '').replace(',', ''))
+                key = "bintang" + star_num
+                stars[key] = cnt
+            except Exception:
+                pass
+
     except Exception as e:
         print("Error scraping " + name + ": " + str(e))
     finally:
         page.close()
 
-    print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews))
+    print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews) + " Stars=" + str(stars))
     return {
         "idUnit": unit["idUnit"],
         "namaUnit": name,
         "rating": rating,
-        "reviews": reviews
+        "reviews": reviews,
+        "bintang5": stars["bintang5"],
+        "bintang4": stars["bintang4"],
+        "bintang3": stars["bintang3"],
+        "bintang2": stars["bintang2"],
+        "bintang1": stars["bintang1"]
     }
 
 def main():
