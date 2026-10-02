@@ -25,32 +25,36 @@ def extract_rating_and_reviews(html):
     rating = 0.0
     reviews = 0
 
-    # 1. Strategy 1: Google Maps JS Array Payload
-    # Pattern matches float/int (e.g. 4.399999618530273 or 4.6) followed by review count (e.g. 76 or 107)
-    gmaps_matches = re.findall(r'(?:[|,)\s*([0-9]+\.[0-9]+|[0-9]+)\s*,\s*([' + DIGITS + r']{1,5})\s*(?:\]|,)', html)
-    for r_str, rev_str in gmaps_matches:
-        try:
-            val = float(r_str)
-            rev_num = int(rev_str)
-            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
-                rating = round(val, 1)
-                reviews = rev_num
-                return rating, reviews
-        except Exception:
-            pass
+    # 1. Strategy 1: Google Maps JS Data Payload (IEEE Float for Place Rating)
+    # Pattern matches floating numbers (e.g. 4.399999618530273 or 4.6) followed by review count
+    gmaps_matches = re.findall(r'(?:\[|,)\s*([0-9]+\.[0-9]+|[0-9]+)\s*,\s*([0-9]{1,5})\s*(?:\]|,)', html)
+    for m in gmaps_matches:
+        if isinstance(m, tuple) and len(m) == 2:
+            r_str, rev_str = m
+            try:
+                val = float(r_str)
+                rev_num = int(rev_str)
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
+                    rating = round(val, 1)
+                    reviews = rev_num
+                    return rating, reviews
+            except Exception:
+                pass
 
     # 2. Strategy 2: aria-label in Google Search Knowledge Panel
-    aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([' + DIGITS + r'\.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
-    for r_str, rev_str in aria_matches:
-        try:
-            val = float(r_str.replace(',', '.'))
-            rev_num = int(rev_str.replace('.', ''))
-            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
-                rating = round(val, 1)
-                reviews = rev_num
-                return rating, reviews
-        except Exception:
-            pass
+    aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', html, re.IGNORECASE)
+    for m in aria_matches:
+        if isinstance(m, tuple) and len(m) == 2:
+            r_str, rev_str = m
+            try:
+                val = float(r_str.replace(',', '.'))
+                rev_num = int(rev_str.replace('.', ''))
+                if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
+                    rating = round(val, 1)
+                    reviews = rev_num
+                    return rating, reviews
+            except Exception:
+                pass
 
     # 3. Strategy 3: Schema JSON-LD
     m_rat = re.search(r'"ratingValue"\s*:\s*"?([0-9.,]+)"?', html, re.IGNORECASE)
@@ -58,8 +62,8 @@ def extract_rating_and_reviews(html):
     if m_rat and m_rev:
         try:
             val = float(m_rat.group(1).replace(',', '.'))
-            rev_num = int(m_rev.group(1))
-            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4):
+            rev_num = int(m_rev.group(1).replace('.', ''))
+            if int(val) in (1, 2, 3, 4, 5) and rev_num not in (0, 1, 2, 3, 4, 9):
                 rating = round(val, 1)
                 reviews = rev_num
                 return rating, reviews
