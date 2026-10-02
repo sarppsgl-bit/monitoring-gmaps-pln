@@ -12,7 +12,7 @@ UNITS = [
     {"idUnit": "ULP_MRD", "namaUnit": "ULP Meureudu", "query": "PLN ULP Meureudu"}
 ]
 
-def scrape_unit(page, unit):
+def scrape_unit(context, unit):
     name = unit["namaUnit"]
     query = unit["query"]
     url = "https://www.google.com/maps/search/" + query.replace(" ", "+")
@@ -20,12 +20,15 @@ def scrape_unit(page, unit):
     rating = 0.0
     reviews = 0
 
-    print("Opening browser for " + name + "...")
+    # Buka tab browser baru yang bersih khusus untuk unit ini
+    page = context.new_page()
+    print("Opening clean tab for " + name + "...")
+
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
 
-        # Handle cookie consent popup if present
+        # Handle cookie consent popup jika muncul
         try:
             consent_btn = page.locator('button:has-text("Setuju"), button:has-text("Accept all"), button:has-text("I agree")')
             if consent_btn.count() != 0:
@@ -36,7 +39,7 @@ def scrape_unit(page, unit):
 
         content = page.content()
 
-        # Extract rating &amp; review count from rendered DOM / aria-label
+        # 1. Ekstrak dari aria-label Google Maps
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -49,8 +52,8 @@ def scrape_unit(page, unit):
             except Exception:
                 pass
 
-        # Fallback if aria-label not found: inspect rendered text elements
-        if rating == 0.0:
+        # 2. Fallback: Ekstrak dari elemen tombol ulasan yang ter-render di layar
+        if rating == 0.0 or reviews == 0:
             spans = page.locator('span[aria-hidden="true"]').all_text_contents()
             for s in spans:
                 s_clean = s.strip().replace(',', '.')
@@ -67,15 +70,19 @@ def scrape_unit(page, unit):
                 nums = re.findall(r'([0-9.]+)', rb)
                 if nums:
                     try:
-                        r_clean = nums[0].replace('.', '')
+                        r_clean = nums.replace('.', '')
                         if r_clean.isdigit():
-                            reviews = int(r_clean)
-                            break
+                            r_int = int(r_clean)
+                            if r_int not in (0, 1, 2, 3, 4):
+                                reviews = r_int
+                                break
                     except Exception:
                         pass
 
     except Exception as e:
         print("Error scraping " + name + ": " + str(e))
+    finally:
+        page.close()
 
     print("RESULT : " + name + " Rating=" + str(rating) + ", Reviews=" + str(reviews))
     return {
@@ -95,10 +102,9 @@ def main():
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
             locale="id-ID"
         )
-        page = context.new_page()
 
         for unit in UNITS:
-            results.append(scrape_unit(page, unit))
+            results.append(scrape_unit(context, unit))
 
         browser.close()
 
