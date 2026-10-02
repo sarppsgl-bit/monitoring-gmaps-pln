@@ -6,15 +6,16 @@ from playwright.sync_api import sync_playwright
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwG0n7k4j9LkdumyKuyCi3s4rxd_XK9Oi_11s8fKp7WOa5L6dDJjWtFWGdPTMdxipmn/exec"
 
 UNITS = [
-    {"idUnit": "UP3_SGL", "namaUnit": "UP3 Sigli", "query": "PT PLN Persero UP3 Sigli"},
-    {"idUnit": "ULP_SGL", "namaUnit": "ULP Sigli Kota", "query": "PLN ULP Sigli Kota"},
-    {"idUnit": "ULP_BRN", "namaUnit": "ULP Beureunuen", "query": "PLN ULP Beureunuen"},
-    {"idUnit": "ULP_MRD", "namaUnit": "ULP Meureudu", "query": "PLN ULP Meureudu"}
+    {"idUnit": "UP3_SGL", "namaUnit": "UP3 Sigli", "query": "PLN UP3 Sigli", "keyword": "UP3 Sigli"},
+    {"idUnit": "ULP_SGL", "namaUnit": "ULP Sigli Kota", "query": "PLN ULP Sigli Kota", "keyword": "Sigli Kota"},
+    {"idUnit": "ULP_BRN", "namaUnit": "ULP Beureunuen", "query": "PLN ULP Beureunuen", "keyword": "Beureunuen"},
+    {"idUnit": "ULP_MRD", "namaUnit": "ULP Meureudu", "query": "PLN ULP Meureudu", "keyword": "Meureudu"}
 ]
 
 def scrape_unit(context, unit):
     name = unit["namaUnit"]
     query = unit["query"]
+    keyword = unit["keyword"]
     url = "https://www.google.com/maps/search/" + query.replace(" ", "+")
     
     rating = 0.0
@@ -28,15 +29,23 @@ def scrape_unit(context, unit):
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(4000)
 
-        # Klik kartu hasil pertama di sidebar agar Google Maps membuka Panel Detail
-        first_place_card = page.locator('a[href*="/maps/place/"]').first
-        if first_place_card.count() != 0:
-            first_place_card.click()
-            page.wait_for_timeout(3000)
+        # Cari kartu tempat yang sesuai dengan keyword agar tidak salah klik tempat lain
+        cards = page.locator('a[href*="/maps/place/"]')
+        card_count = cards.count()
+        if card_count &gt; 0:
+            target_idx = 0
+            for i in range(min(card_count, 5)):
+                card = cards.nth(i)
+                label = card.get_attribute("aria-label") or card.inner_text() or ""
+                if keyword.lower() in label.lower():
+                    target_idx = i
+                    break
+            cards.nth(target_idx).click()
+            page.wait_for_timeout(4000)
 
         content = page.content()
 
-        # 1. Ambil rating dan ulasan dari aria-label panel detail
+        # 1. Ambil rating &amp; total ulasan dari aria-label panel detail tempat
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -49,7 +58,7 @@ def scrape_unit(context, unit):
             except Exception:
                 pass
 
-        # 2. Fallback untuk rating dan total ulasan
+        # 2. Fallback rating &amp; total ulasan jika aria-label utama tidak cocok
         if rating == 0.0 or reviews == 0:
             spans = page.locator('div.F7L3fd span, span[aria-hidden="true"]').all_text_contents()
             for s in spans:
@@ -67,7 +76,7 @@ def scrape_unit(context, unit):
                 nums = re.findall(r'([0-9.]+)', rb)
                 if nums:
                     try:
-                        r_clean = nums.replace('.', '')
+                        r_clean = nums[0].replace('.', '')
                         if r_clean.isdigit():
                             r_int = int(r_clean)
                             if r_int not in (0, 1, 2, 3, 4):
@@ -77,7 +86,7 @@ def scrape_unit(context, unit):
                         pass
 
         # 3. Ekstrak Rincian Bintang 1-5 (Histogram)
-        star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars)[,\s]+([0-9.]+)', content, re.IGNORECASE)
+        star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
                 cnt = int(count_str.replace('.', '').replace(',', ''))
