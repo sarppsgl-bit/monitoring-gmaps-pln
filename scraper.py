@@ -29,13 +29,12 @@ def scrape_unit(context, unit):
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(4000)
 
-        # Cari kartu tempat yang sesuai dengan keyword agar tidak salah klik tempat lain
+        # Cari kartu tempat tanpa operator pembanding
         cards = page.locator('a[href*="/maps/place/"]')
         card_count = cards.count()
-        if card_count &gt; 0:
+        if card_count:
             target_idx = 0
-            for i in range(min(card_count, 5)):
-                card = cards.nth(i)
+            for i, card in enumerate(cards.all()[:5]):
                 label = card.get_attribute("aria-label") or card.inner_text() or ""
                 if keyword.lower() in label.lower():
                     target_idx = i
@@ -45,7 +44,7 @@ def scrape_unit(context, unit):
 
         content = page.content()
 
-        # 1. Ambil rating &amp; total ulasan dari aria-label panel detail tempat
+        # 1. Ambil rating dan total ulasan dari panel detail tempat
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -58,7 +57,7 @@ def scrape_unit(context, unit):
             except Exception:
                 pass
 
-        # 2. Fallback rating &amp; total ulasan jika aria-label utama tidak cocok
+        # 2. Fallback rating dan total ulasan jika aria-label utama tidak terdeteksi
         if rating == 0.0 or reviews == 0:
             spans = page.locator('div.F7L3fd span, span[aria-hidden="true"]').all_text_contents()
             for s in spans:
@@ -76,7 +75,7 @@ def scrape_unit(context, unit):
                 nums = re.findall(r'([0-9.]+)', rb)
                 if nums:
                     try:
-                        r_clean = nums[0].replace('.', '')
+                        r_clean = nums.replace('.', '')
                         if r_clean.isdigit():
                             r_int = int(r_clean)
                             if r_int not in (0, 1, 2, 3, 4):
@@ -85,7 +84,7 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
-        # 3. Ekstrak Rincian Bintang 1-5 (Histogram)
+        # 3. Ekstrak Rincian Bintang 1-5 (Fix Regex Capture Group)
         star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
