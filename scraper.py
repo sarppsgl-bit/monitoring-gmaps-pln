@@ -1,4 +1,3 @@
-python
 import re
 import json
 import requests
