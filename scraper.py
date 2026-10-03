@@ -5,45 +5,49 @@ from playwright.sync_api import sync_playwright
 
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwG0n7k4j9LkdumyKuyCi3s4rxd_XK9Oi_11s8fKp7WOa5L6dDJjWtFWGdPTMdxipmn/exec"
 
+# Menggunakan URL Langsung Spesifik dari Master_Unit (Bebas Salah Klik!)
 UNITS = [
-    {"idUnit": "UP3_SGL", "namaUnit": "UP3 Sigli", "query": "PLN UP3 Sigli", "keyword": "UP3 Sigli"},
-    {"idUnit": "ULP_SGL", "namaUnit": "ULP Sigli Kota", "query": "PLN ULP Sigli Kota", "keyword": "Sigli Kota"},
-    {"idUnit": "ULP_BRN", "namaUnit": "ULP Beureunuen", "query": "PLN ULP Beureunuen", "keyword": "Beureunuen"},
-    {"idUnit": "ULP_MRD", "namaUnit": "ULP Meureudu", "query": "PLN ULP Meureudu", "keyword": "Meureudu"}
+    {
+        "idUnit": "UP3_SGL",
+        "namaUnit": "UP3 Sigli",
+        "url": "https://www.google.com/maps/place/PLN+UP3+Sigli/@5.3799375,95.9555625,17z"
+    },
+    {
+        "idUnit": "ULP_SGL",
+        "namaUnit": "ULP Sigli Kota",
+        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Sigli+Kota/@5.3795539,95.9513883,17z"
+    },
+    {
+        "idUnit": "ULP_BRN",
+        "namaUnit": "ULP Beureunuen",
+        "url": "https://www.google.com/maps/place/PLN+ULP+Beureunuen/@5.273023,95.9860019,17z"
+    },
+    {
+        "idUnit": "ULP_MRD",
+        "namaUnit": "ULP Meureudu",
+        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Meureudu/@5.2390095,96.2277658,17z"
+    }
 ]
 
 def scrape_unit(context, unit):
     name = unit["namaUnit"]
-    query = unit["query"]
-    keyword = unit["keyword"]
-    url = "https://www.google.com/maps/search/" + query.replace(" ", "+")
+    url = unit["url"]
     
     rating = 0.0
     reviews = 0
     stars = {"bintang5": 0, "bintang4": 0, "bintang3": 0, "bintang2": 0, "bintang1": 0}
 
     page = context.new_page()
-    print("Navigating to " + name + "...")
+    print("Navigating directly to " + name + "...")
 
     try:
+        # Buka langsung URL tempat tanpa melalui pencarian
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(4000)
-
-        cards = page.locator('a[href*="/maps/place/"]')
-        card_count = cards.count()
-        if card_count != 0:
-            target_idx = 0
-            for i, card in enumerate(cards.all()[:5]):
-                label = card.get_attribute("aria-label") or card.inner_text() or ""
-                if keyword.lower() in label.lower():
-                    target_idx = i
-                    break
-            cards.nth(target_idx).click()
-            page.wait_for_timeout(4000)
+        page.wait_for_timeout(5000)
 
         content = page.content()
 
-        # 1. Ambil rating dan total ulasan
+        # 1. Ambil rating dan total ulasan dari aria-label utama
         aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
@@ -56,7 +60,7 @@ def scrape_unit(context, unit):
             except Exception:
                 pass
 
-        # 2. Fallback rating dan total ulasan jika aria-label utama tidak terdeteksi
+        # 2. Fallback rating dan total ulasan jika aria-label utama belum terbaca
         if rating == 0.0 or reviews == 0:
             spans = page.locator('div.F7L3fd span, span[aria-hidden="true"]').all_text_contents()
             for s in spans:
@@ -83,7 +87,7 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
-        # 3. Ekstrak Rincian Bintang 1-5 (FIXED REGEX)
+        # 3. Ekstrak Rincian Bintang 1-5 (Fix Regex Capture Group)
         star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
