@@ -1,3 +1,5 @@
+```
+```python
 import re
 import json
 import requests
@@ -5,27 +7,27 @@ from playwright.sync_api import sync_playwright
 
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwG0n7k4j9LkdumyKuyCi3s4rxd_XK9Oi_11s8fKp7WOa5L6dDJjWtFWGdPTMdxipmn/exec"
 
-# Menggunakan URL Langsung Spesifik dari Master_Unit (Bebas Salah Klik!)
+# Menggunakan URL Lengkap dengan Google Place ID (Diambil dari Master_Unit)
 UNITS = [
     {
         "idUnit": "UP3_SGL",
         "namaUnit": "UP3 Sigli",
-        "url": "https://www.google.com/maps/place/PLN+UP3+Sigli/@5.3799375,95.9555625,17z"
+        "url": "https://www.google.com/maps/place/PLN+UP3+Sigli/@5.3799896,95.9547584,17z/data=!4m6!3m5!1s0x3040ecc412c13713:0x91baf8e94db4dc84!8m2!3d5.3799375!4d95.9555625"
     },
     {
         "idUnit": "ULP_SGL",
         "namaUnit": "ULP Sigli Kota",
-        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Sigli+Kota/@5.3795539,95.9513883,17z"
+        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Sigli+Kota/@5.3799896,95.9547584,17z/data=!4m6!3m5!1s0x3040ecdb4b013d83:0xf3bd76fe8104f666!8m2!3d5.3795539!4d95.9513883"
     },
     {
         "idUnit": "ULP_BRN",
         "namaUnit": "ULP Beureunuen",
-        "url": "https://www.google.com/maps/place/PLN+ULP+Beureunuen/@5.273023,95.9860019,17z"
+        "url": "https://www.google.com/maps/place/PLN+ULP+Beureunuen/@5.2730283,95.983427,17z/data=!4m6!3m5!1s0x304096ada7d68ee7:0x9b0c21ac22722c85!8m2!3d5.273023!4d95.9860019"
     },
     {
         "idUnit": "ULP_MRD",
         "namaUnit": "ULP Meureudu",
-        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Meureudu/@5.2390095,96.2277658,17z"
+        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Meureudu/@5.2390148,96.2251909,17z/data=!4m6!3m5!1s0x3040ba7d39992fa5:0x2e85a7ef40c37037!8m2!3d5.2390095!4d96.2277658"
     }
 ]
 
@@ -41,7 +43,6 @@ def scrape_unit(context, unit):
     print("Navigating directly to " + name + "...")
 
     try:
-        # Buka langsung URL tempat tanpa melalui pencarian
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         page.wait_for_timeout(5000)
 
@@ -87,7 +88,7 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
-        # 3. Ekstrak Rincian Bintang 1-5 (Fix Regex Capture Group)
+        # 3. Ekstrak Rincian Bintang 1-5 (Regex Fixed)
         star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
@@ -145,3 +146,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+```
