@@ -5,71 +5,34 @@ from playwright.sync_api import sync_playwright
 
 WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwG0n7k4j9LkdumyKuyCi3s4rxd_XK9Oi_11s8fKp7WOa5L6dDJjWtFWGdPTMdxipmn/exec"
 
-# Direct URL dengan query parameter ?hl=id&amp;gl=ID untuk bypass consent regional
+# Query pencarian spesifik Google Search (Bebas dari Proteksi Bot Google Maps!)
 UNITS = [
-    {
-        "idUnit": "UP3_SGL",
-        "namaUnit": "UP3 Sigli",
-        "url": "https://www.google.com/maps/place/PLN+UP3+Sigli/@5.3799896,95.9547584,17z/data=!4m6!3m5!1s0x3040ecc412c13713:0x91baf8e94db4dc84!8m2!3d5.3799375!4d95.9555625?hl=id&amp;gl=ID"
-    },
-    {
-        "idUnit": "ULP_SGL",
-        "namaUnit": "ULP Sigli Kota",
-        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Sigli+Kota/@5.3799896,95.9547584,17z/data=!4m6!3m5!1s0x3040ecdb4b013d83:0xf3bd76fe8104f666!8m2!3d5.3795539!4d95.9513883?hl=id&amp;gl=ID"
-    },
-    {
-        "idUnit": "ULP_BRN",
-        "namaUnit": "ULP Beureunuen",
-        "url": "https://www.google.com/maps/place/PLN+ULP+Beureunuen/@5.2730283,95.983427,17z/data=!4m6!3m5!1s0x304096ada7d68ee7:0x9b0c21ac22722c85!8m2!3d5.273023!4d95.9860019?hl=id&amp;gl=ID"
-    },
-    {
-        "idUnit": "ULP_MRD",
-        "namaUnit": "ULP Meureudu",
-        "url": "https://www.google.com/maps/place/PT+PLN+(Persero)+ULP+Meureudu/@5.2390148,96.2251909,17z/data=!4m6!3m5!1s0x3040ba7d39992fa5:0x2e85a7ef40c37037!8m2!3d5.2390095!4d96.2277658?hl=id&amp;gl=ID"
-    }
+    {"idUnit": "UP3_SGL", "namaUnit": "UP3 Sigli", "query": "PLN UP3 Sigli"},
+    {"idUnit": "ULP_SGL", "namaUnit": "ULP Sigli Kota", "query": "PT PLN Persero ULP Sigli Kota"},
+    {"idUnit": "ULP_BRN", "namaUnit": "ULP Beureunuen", "query": "PLN ULP Beureunuen"},
+    {"idUnit": "ULP_MRD", "namaUnit": "ULP Meureudu", "query": "PT PLN Persero ULP Meureudu"}
 ]
-
-def handle_consent(page):
-    # Otomatis klik tombol persetujuan Cookie jika muncul di GitHub Actions runner
-    for btn_text in ["Saya setuju", "Setuju", "Accept all", "I agree", "Allow all"]:
-        try:
-            btn = page.locator('button:has-text("' + btn_text + '")').first
-            if btn.is_visible(timeout=1500):
-                btn.click()
-                page.wait_for_timeout(2000)
-                break
-        except Exception:
-            pass
 
 def scrape_unit(context, unit):
     name = unit["namaUnit"]
-    url = unit["url"]
+    query = unit["query"]
+    url = "https://www.google.com/search?q=" + query.replace(" ", "+") + "&amp;hl=id&amp;gl=ID"
     
     rating = 0.0
     reviews = 0
     stars = {"bintang5": 0, "bintang4": 0, "bintang3": 0, "bintang2": 0, "bintang1": 0}
 
     page = context.new_page()
-    print("Navigating directly to " + name + "...")
+    print("Searching via Google Search for " + name + "...")
 
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
-        page.wait_for_timeout(3000)
-        
-        # Tangani consent pop-up
-        handle_consent(page)
-        
-        # Tunggu sampai panel utama Google Maps muncul
-        try:
-            page.wait_for_selector('div[role="main"]', timeout=10000)
-        except Exception:
-            pass
-            
-        page.wait_for_timeout(3000)
+        page.wait_for_timeout(4000)
+
         content = page.content()
 
-        # 1. Ekstrak Rating dan Total Ulasan dari aria-label utama
-        aria_matches = re.findall(r'aria-label="([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
+        # 1. Ambil Rating &amp; Total Ulasan dari Knowledge Panel Google Search
+        aria_matches = re.findall(r'([0-9.,]+)\s*(?:bintang|stars|dari|out of)[^"]*?([0-9.]+)\s*(?:ulasan|reviews)', content, re.IGNORECASE)
         for r_str, rev_str in aria_matches:
             try:
                 val = float(r_str.replace(',', '.'))
@@ -81,22 +44,11 @@ def scrape_unit(context, unit):
             except Exception:
                 pass
 
-        # 2. Fallback jika aria-label utama belum terbaca sempurna
+        # Fallback jika aria-label belum terbaca
         if rating == 0.0 or reviews == 0:
-            spans = page.locator('div.F7L3fd span, span[aria-hidden="true"]').all_text_contents()
+            spans = page.locator('span:has-text("ulasan Google"), span:has-text("Google reviews")').all_text_contents()
             for s in spans:
-                s_clean = s.strip().replace(',', '.')
-                try:
-                    v = float(s_clean)
-                    if int(v) in (1, 2, 3, 4, 5):
-                        rating = round(v, 1)
-                        break
-                except Exception:
-                    pass
-
-            rev_btns = page.locator('button:has-text("ulasan"), button:has-text("reviews")').all_text_contents()
-            for rb in rev_btns:
-                nums = re.findall(r'([0-9.]+)', rb)
+                nums = re.findall(r'([0-9.]+)', s)
                 if nums:
                     try:
                         r_clean = nums[0].replace('.', '')
@@ -108,7 +60,17 @@ def scrape_unit(context, unit):
                     except Exception:
                         pass
 
-        # 3. Ekstrak Rincian Bintang 1-5 (Regex Fix)
+            r_spans = page.locator('span.Aq14fc, div.F7L3fd span').all_text_contents()
+            for rs in r_spans:
+                try:
+                    v = float(rs.strip().replace(',', '.'))
+                    if int(v) in (1, 2, 3, 4, 5):
+                        rating = round(v, 1)
+                        break
+                except Exception:
+                    pass
+
+        # 2. Ambil Rincian Bintang 1-5
         star_matches = re.findall(r'aria-label="([1-5])\s*(?:bintang|stars|star)[,\s]+([0-9.]+)', content, re.IGNORECASE)
         for star_num, count_str in star_matches:
             try:
@@ -137,7 +99,7 @@ def scrape_unit(context, unit):
     }
 
 def main():
-    print("=== STARTING PLAYWRIGHT GMAPS SCRAPER ===")
+    print("=== STARTING GOOGLE SEARCH GMAPS SCRAPER ===")
     results = []
 
     with sync_playwright() as p:
